@@ -1,0 +1,38 @@
+name: Check Jenkins pipeline
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  checking-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checks-out your repository
+        uses: actions/checkout@v3
+
+      - name: Prepare Jenkinsfile Runner
+        run: |
+          curl -O https://dlcdn.apache.org/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.zip
+          unzip apache-maven-3.9.6-bin.zip
+          rm apache-maven-3.9.6-bin.zip
+
+      - name: Run Jenkinsfile
+        id: run_jenkinsfile
+        run: |
+          docker run --rm -v $(pwd):/workspace -v $(which mvn):/mvn -v /local/jenkinsHome:/jenkinsHome \
+              -e PATH=$PATH:/opt/java/openjdk/jre/bin:/workspace/apache-maven-3.9.6/bin \
+              --entrypoint bash jenkins/jenkinsfile-runner \
+              -c '/app/bin/jenkinsfile-runner --jenkins-war /app/jenkins --plugins /usr/share/jenkins/ref/plugins --file /workspace/Jenkinsfile --runWorkspace /workspace --runHome /jenkinsHome'           
+    
+      - name: Check Test Running
+        run: 'if ! grep -q "Running com.softserve.verify.RestIT" /local/jenkinsHome/jobs/job/builds/1/log;  then exit 1; fi'
+ 
+      - name: Check Test Running
+        run: 'if grep -q "FAILURE" /local/jenkinsHome/jobs/job/builds/1/log;  then exit 1; fi'
+
+      - name: Check Test Result
+        run: 'if grep -q "Tests run: 1, Failures: 0, Errors: 0, Skipped: 0" /local/jenkinsHome/jobs/job/builds/1/log;  then exit 0; else exit 1; fi'
